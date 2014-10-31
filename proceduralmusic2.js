@@ -10,22 +10,38 @@ var Octave = 12,
 	F = 8,
 	G = 9;
 
-function play(volume, bpm, notes) {
+var Beat, Thinkers = [];
+
+function play(volume, notes) {
 	var gain = ac.createGain();
 	gain.connect(ac.destination);
 
 	var oscillator = ac.createOscillator();
 	oscillator.connect(gain);
 
-	function think() {
+	var beat = 0;
+
+	function think(add) {
 		function t2f(tone) {
 			return Math.pow(2, tone / 12) * 440;
 		}
 
-		var Beat = 60 / bpm;
-
-		var note = notes.shift();
-		notes.push(note);
+		beat += add;
+		var b = beat;
+		var note;
+		notes.forEach(function(n) {
+			if (b < 0) {
+				return;
+			}
+			if (b < n[1]) {
+				note = n;
+			}
+			b -= n[1];
+		});
+		if (note === undefined) {
+			note = notes[0];
+			beat = 0.0;
+		}
 
 		if (note[0] === false) {
 			gain.gain.value = 0;
@@ -33,12 +49,12 @@ function play(volume, bpm, notes) {
 			gain.gain.value = volume;
 			oscillator.frequency.value = t2f(note[0]);
 		}
-
-		setTimeout(think, note[1] * Beat * 1000);
 	}
+	think(0);
 
-	think();
 	oscillator.start();
+
+	Thinkers.push(think);
 
 	return {
 		setVolume: function(v) {
@@ -47,16 +63,14 @@ function play(volume, bpm, notes) {
 		getVolume: function() {
 			return volume;
 		},
-		setBPM: function(v) {
-			bpm = v;
-		},
-		getBPM: function() {
-			return bpm;
-		},
 	};
 }
 
-var players = [];
+function think() {
+	Thinkers.forEach(function(f) {
+		f(0.0625);
+	});
+}
 
 function slider(name, player) {
 	var input = document.createElement('input');
@@ -69,10 +83,9 @@ function slider(name, player) {
 	};
 	input.title = name;
 	document.body.appendChild(input);
-	players.push(player);
 }
 
-var wubwubwub = play(0.1, 166, [
+var wubwubwub = play(0.1, [
 	[G - 3 * Octave, 1.5], [D - 2 * Octave, 1.5], [G - 2 * Octave, 5.0],
 	[F-1-3 * Octave, 1.5], [C - 2 * Octave, 1.5], [F-1-2 * Octave, 5.0],
 	[E - 3 * Octave, 1.5], [B - 2 * Octave, 1.5], [E - 2 * Octave, 5.0],
@@ -80,26 +93,26 @@ var wubwubwub = play(0.1, 166, [
 ]);
 slider("wubwubwub", wubwubwub);
 
-var dingdingdingding = play(0.05, 166, [
-	[D, 0.45], [false, 0.05],
-	[D, 0.45], [false, 0.05],
-	[D, 0.45], [false, 0.05],
-	[D, 0.5],  [false, 6.0]
+var dingdingdingding = play(0.05, [
+	[D, 0.4375], [false, 0.0625],
+	[D, 0.4375], [false, 0.0625],
+	[D, 0.4375], [false, 0.0625],
+	[D, 0.5   ], [false, 6.0   ]
 ]);
 slider("dingdingdingding", dingdingdingding);
 
-var beep = play(0.05, 166, [
-	[false, 2.95], [A, 0.05], [D + Octave, 1.0]
+var beep = play(0.05, [
+	[false, 2.9375], [A, 0.0625], [D + Octave, 1.0]
 ]);
 slider("beep", beep);
 
-var dududu = play(0.05, 166, [
+var dududu = play(0.05, [
 	[false, 2.0], [C - Octave, 0.5], [D - Octave, 0.5], [C - Octave, 0.5], [false, 0.5]
 ]);
 slider("dududu", dududu);
 
-var doop = play(0.1, 166, [
-	[A, 0.05], [false, 3.95], [G - 4 * Octave, 4.0]
+var doop = play(0.1, [
+	[A, 0.0625], [false, 3.9375], [G - 4 * Octave, 0.5], [false, 3.5]
 ]);
 slider("doop", doop);
 
@@ -107,10 +120,13 @@ var input = document.createElement('input');
 input.type = 'range';
 input.min = 1;
 input.max = 1000;
-input.value = players[0].getBPM();
+input.value = 166;
+input.title = 'bpm';
+Beat = 60 / input.value;
+var thinkTimer = setInterval(think, Beat * 1000 * 0.0625);
 input.onchange = function() {
-	players.forEach(function(player) {
-		player.setBPM(+input.value);
-	});
+	Beat = 60 / input.value;
+	clearInterval(thinkTimer);
+	thinkTimer = setInterval(think, Beat * 1000 * 0.0625);
 };
 document.body.appendChild(input);
